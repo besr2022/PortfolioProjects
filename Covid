@@ -1,0 +1,118 @@
+--SQL queries written for use in Google BigQuery
+--Select all data
+SELECT *
+FROM `covid-365903.covid.covid_deaths`
+where continent is not null
+order by 1,2
+
+
+--Select data to be used
+SELECT location, date, total_cases, new_cases, total_deaths, population
+FROM `covid-365903.covid.covid_deaths`
+where continent is not null
+order by 1,2
+
+
+--Looking at Total Cases vs. Total Deaths
+--Shows likelihood of dying if you contract covid in your country
+SELECT location, date, total_cases, total_deaths, (total_deaths/total_cases)*100 as DeathPercentage
+FROM `covid-365903.covid.covid_deaths`
+WHERE location like '%States%'
+and continent is not null
+order by 1,2
+
+
+--Looking at Total Cases vs Population
+--Shows what percentage of population got Covid
+SELECT location, date, population, total_cases,(total_cases/population)*100 as PercentPopulationInfected
+FROM `covid-365903.covid.covid_deaths`
+WHERE location like '%States%'
+order by 1,2
+
+
+--Looking at countries with Highest Infection Rate compared to Population
+SELECT location, population, MAX(total_cases) as HighestInfectionCount,MAX((total_cases/population))*100 as PercentPopulationInfected
+FROM `covid-365903.covid.covid_deaths`
+GROUP BY location, population
+order by PercentPopulationInfected desc
+
+
+--Showing Countries with Highest Death Count per Population
+SELECT location, MAX(total_deaths) as TotalDeathCount
+FROM `covid-365903.covid.covid_deaths`
+WHERE continent is not null
+GROUP BY location
+order by TotalDeathCount desc
+
+
+--Showing location with Highest Death Count per Population
+SELECT location, MAX(total_deaths) as TotalDeathCount
+FROM `covid-365903.covid.covid_deaths`
+WHERE location is not null
+GROUP BY location
+order by TotalDeathCount desc
+
+
+--Showing the CONTINENTS with the highest death count
+SELECT continent, MAX(total_deaths) as TotalDeathCount
+FROM `covid-365903.covid.covid_deaths`
+where continent is not null
+GROUP BY continent
+order by TotalDeathCount desc
+
+
+--Global numbers - looking at CONTINENTS
+Select sum(new_cases) as total_cases, sum(new_deaths)as total_deaths, sum(new_deaths)/sum(new_cases)*100 as DeathPercentage
+FROm `covid-365903.covid.covid_deaths`
+where continent is not null
+order by 1,2
+
+
+--JOINING TABLES
+Select *
+FROM `covid-365903.covid.covid_deaths` as dea
+join `covid-365903.covid.covid_vaccinations` as vac
+on dea.location = vac.location
+and dea.date = vac.date
+where dea.continent is not null
+order by 1,2
+
+
+--Looking at Total Population vs Vaccinations (in the United Sates)
+Select dea.continent, dea.location, dea.date, dea.population, vac.new_vaccinations,
+sum(vac.new_vaccinations) over (partition by dea.location order by dea.location, dea.date) as RollingPeopleVaccinated, 
+FROM `covid-365903.covid.covid_deaths` as dea
+join `covid-365903.covid.covid_vaccinations` as vac
+on dea.location = vac.location
+and dea.date = vac.date
+where dea.continent is not null
+and dea.location like '%States%'
+order by 2,3
+
+
+--USE CTE to calulate percentage of poplution vaccinated in United Staes from previous partition query
+With PopvsVac as 
+(
+Select dea.continent, dea.location, dea.date, dea.population, vac.new_vaccinations,
+sum(vac.new_vaccinations) over (partition by dea.location order by dea.location, dea.date) as RollingPeopleVaccinated, 
+FROM `covid-365903.covid.covid_deaths` as dea
+join `covid-365903.covid.covid_vaccinations` as vac
+on dea.location = vac.location
+and dea.date = vac.date
+where dea.continent is not null
+and dea.location like '%States%'
+)
+select *, (RollingPeopleVaccinated/population)*100 as PercentVaccinated
+from PopvsVac
+
+
+--Creating view to store data for later visualizations
+CREATE VIEW PercentVaccinated as
+Select dea.continent, dea.location, dea.date, dea.population, vac.new_vaccinations,
+sum(vac.new_vaccinations) over (partition by dea.location order by dea.location, dea.date) as RollingPeopleVaccinated, 
+FROM `covid-365903.covid.covid_deaths` as dea
+join `covid-365903.covid.covid_vaccinations` as vac
+on dea.location = vac.location
+and dea.date = vac.date
+where dea.continent is not null
+and dea.location like '%States%'
